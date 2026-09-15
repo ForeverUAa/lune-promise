@@ -2,10 +2,27 @@
 	An implementation of Promises similar to Promise/A+.
 ]]
 
+-- Lune support by Mochi ("ForeverUAa")
+
 local ERROR_NON_PROMISE_IN_LIST = "Non-promise value passed into %s at index %s"
 local ERROR_NON_LIST = "Please pass a list of promises to %s"
 local ERROR_NON_FUNCTION = "Please pass a handler function to %s!"
 local MODE_KEY_METATABLE = { __mode = "k" }
+local task = require("@lune/task")
+
+-- lune stuff
+
+local unpack = coroutine.wrap(function(...)
+	return table.unpack(...)
+end)
+
+local TimeEvent = {
+	Wait = function()
+		task.wait()
+	end,
+}
+
+-- the rest
 
 local function isCallable(value)
 	if type(value) == "function" then
@@ -221,7 +238,7 @@ local Promise = {
 	Error = Error,
 	Status = makeEnum("Promise.Status", { "Started", "Resolved", "Rejected", "Cancelled" }),
 	_getTime = os.clock,
-	_timeEvent = game:GetService("RunService").Heartbeat,
+	_timeEvent = TimeEvent,
 	_unhandledRejectionCallbacks = {},
 }
 Promise.prototype = {}
@@ -295,15 +312,27 @@ function Promise._new(traceback, callback, parent)
 		return self._status == Promise.Status.Cancelled
 	end
 
-	self._thread = coroutine.create(function()
-		local ok, _, result = runExecutor(self._source, callback, resolve, reject, onCancel)
+	self._thread = nil
+
+	local function executor()
+		self._thread = coroutine.running()
+
+		local ok, _, result = runExecutor(
+			self._source,
+			callback,
+			resolve,
+			reject,
+			onCancel
+		)
 
 		if not ok then
 			reject(result[1])
 		end
-	end)
+	end
 
-	task.spawn(self._thread)
+	task.spawn(executor)
+
+coroutine.resume(self._thread)
 
 	return self
 end
@@ -1527,20 +1556,8 @@ end
 function Promise.prototype:awaitStatus()
 	self._unhandledRejection = false
 
-	if self._status == Promise.Status.Started then
-		local thread = coroutine.running()
-
-		self
-			:finally(function()
-				task.spawn(thread)
-			end)
-			-- The finally promise can propagate rejections, so we attach a catch handler to prevent the unhandled
-			-- rejection warning from appearing
-			:catch(
-				function() end
-			)
-
-		coroutine.yield()
+	while self._status == Promise.Status.Started do
+		task.wait()
 	end
 
 	if self._status == Promise.Status.Resolved then
@@ -1703,7 +1720,7 @@ function Promise.prototype:_resolve(...)
 
 	-- We assume that these callbacks will not throw errors.
 	for _, callback in ipairs(self._queuedResolve) do
-		coroutine.wrap(callback)(...)
+		task.spawn(callback, ...)
 	end
 
 	self:_finalize()
@@ -1721,7 +1738,7 @@ function Promise.prototype:_reject(...)
 	if not isEmpty(self._queuedReject) then
 		-- We assume that these callbacks will not throw errors.
 		for _, callback in ipairs(self._queuedReject) do
-			coroutine.wrap(callback)(...)
+			task.spawn(callback, ...)
 		end
 	else
 		-- At this point, no one was able to observe the error.
@@ -1731,7 +1748,7 @@ function Promise.prototype:_reject(...)
 
 		local err = tostring((...))
 
-		coroutine.wrap(function()
+		task.spawn(function()
 			Promise._timeEvent:Wait()
 
 			-- Someone observed the error, hooray!
@@ -1752,7 +1769,7 @@ function Promise.prototype:_reject(...)
 			end
 
 			warn(message)
-		end)()
+		end)
 	end
 
 	self:_finalize()
