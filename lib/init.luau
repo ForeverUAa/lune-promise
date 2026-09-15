@@ -12,9 +12,7 @@ local task = require("@lune/task")
 
 -- lune stuff
 
-local unpack = coroutine.wrap(function(...)
-	return table.unpack(...)
-end)
+local unpack = table.unpack
 
 local TimeEvent = {
 	Wait = function()
@@ -315,8 +313,6 @@ function Promise._new(traceback, callback, parent)
 	self._thread = nil
 
 	local function executor()
-		self._thread = coroutine.running()
-
 		local ok, _, result = runExecutor(
 			self._source,
 			callback,
@@ -330,9 +326,7 @@ function Promise._new(traceback, callback, parent)
 		end
 	end
 
-	task.spawn(executor)
-
-coroutine.resume(self._thread)
+	self._thread = task.defer(executor)
 
 	return self
 end
@@ -1556,8 +1550,16 @@ end
 function Promise.prototype:awaitStatus()
 	self._unhandledRejection = false
 
-	while self._status == Promise.Status.Started do
-		task.wait()
+	if self._status == Promise.Status.Started then
+		local thread = coroutine.running()
+
+		self
+			:finally(function()
+				task.spawn(thread)
+			end)
+			:catch(function() end)
+
+		coroutine.yield()
 	end
 
 	if self._status == Promise.Status.Resolved then
@@ -1595,6 +1597,10 @@ end
 	@return ...any -- The values the Promise resolved or rejected with.
 ]=]
 function Promise.prototype:await()
+		if not coroutine.isyieldable() then
+			error("Promise:await() must be called from a yieldable Lune task", 2)
+		end
+
 	return awaitHelper(self:awaitStatus())
 end
 
@@ -1751,20 +1757,21 @@ function Promise.prototype:_reject(...)
 		task.spawn(function()
 			Promise._timeEvent:Wait()
 
-			-- Someone observed the error, hooray!
 			if not self._unhandledRejection then
 				return
 			end
 
-			-- Build a reasonable message
-			local message = string.format("Unhandled Promise rejection:\n\n%s\n\n%s", err, self._source)
+			local message = string.format(
+				"Unhandled Promise rejection:\n\n%s\n\n%s",
+				err,
+				self._source
+			)
 
 			for _, callback in ipairs(Promise._unhandledRejectionCallbacks) do
 				task.spawn(callback, self, unpack(self._values, 1, self._valuesLength))
 			end
 
 			if Promise.TEST then
-				-- Don't spam output when we're running tests.
 				return
 			end
 
