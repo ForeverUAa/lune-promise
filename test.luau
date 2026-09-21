@@ -531,10 +531,9 @@ task.spawn(function()
 	print(string.format("=== %d passed, %d failed ===", passed, failed))
 
 	if failed > 0 then
-		error(string.format("%d Promise tests failed", failed))
+		process.exit(1)
 	else
 		print("ALL TESTS PASSED")
+		process.exit(0)
 	end
 end)
-
-process.exit(failed > 0 and 1 or 0)

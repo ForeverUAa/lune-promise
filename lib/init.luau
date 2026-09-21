@@ -79,7 +79,7 @@ do
 	function Error.new(options, parent)
 		options = options or {}
 		return setmetatable({
-			error = tostring(options.error) or "[This error has no error text.]",
+			error = options.error ~= nil and tostring(options.error) or "[This error has no error text.]",
 			trace = options.trace,
 			context = options.context,
 			kind = options.kind,
