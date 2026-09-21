@@ -1,0 +1,6 @@
+[suites.unit]
+include = ["tests/**/*.spec.luau"]
+backend = "lune"
+
+[settings]
+timeout_ms = 10000

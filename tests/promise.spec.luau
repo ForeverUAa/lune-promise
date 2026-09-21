@@ -1,22 +1,9 @@
-local Promise = require("./lib")
-local process = require("@lune/process")
+--!strict
+local Lest = require("../.lest/core")
+local describe, it, expect = Lest.describe, Lest.it, Lest.expect
+
+local Promise = require("../lib")
 local task = require("@lune/task")
-
-local passed = 0
-local failed = 0
-
-local function test(name, callback)
-	local ok, err = xpcall(callback, debug.traceback)
-
-	if ok then
-		passed += 1
-		print("PASS:", name)
-	else
-		failed += 1
-		warn("FAIL:", name)
-		warn(err)
-	end
-end
 
 local function expectEqual(actual, expected, message)
 	assert(actual == expected, message or string.format(
@@ -26,19 +13,18 @@ local function expectEqual(actual, expected, message)
 	))
 end
 
-task.spawn(function()
-	print("=== Promise Lune test suite ===")
-	print("")
+
+describe("Promise", function()
 
 	-- Basic construction / resolution
-	test("Promise.resolve", function()
+	it("Promise.resolve", function()
 		local status, value = Promise.resolve("hello"):awaitStatus()
 
 		expectEqual(status, Promise.Status.Resolved)
 		expectEqual(value, "hello")
 	end)
 
-	test("Promise.resolve multiple values", function()
+	it("Promise.resolve multiple values", function()
 		local status, a, b, c = Promise.resolve(1, 2, 3):awaitStatus()
 
 		expectEqual(status, Promise.Status.Resolved)
@@ -47,7 +33,7 @@ task.spawn(function()
 		expectEqual(c, 3)
 	end)
 
-	test("Promise.new resolves", function()
+	it("Promise.new resolves", function()
 		local status, value = Promise.new(function(resolve)
 			resolve(123)
 		end):awaitStatus()
@@ -56,7 +42,7 @@ task.spawn(function()
 		expectEqual(value, 123)
 	end)
 
-	test("Promise.new executor may yield", function()
+	it("Promise.new executor may yield", function()
 		local status, value = Promise.new(function(resolve)
 			task.wait(0.02)
 			resolve("yielded")
@@ -67,7 +53,7 @@ task.spawn(function()
 	end)
 
 	-- Chaining
-	test("andThen transforms value", function()
+	it("andThen transforms value", function()
 		local status, value = Promise.resolve(10)
 			:andThen(function(x)
 				return x * 2
@@ -78,7 +64,7 @@ task.spawn(function()
 		expectEqual(value, 20)
 	end)
 
-	test("andThen chains multiple times", function()
+	it("andThen chains multiple times", function()
 		local status, value = Promise.resolve(5)
 			:andThen(function(x)
 				return x + 5
@@ -95,7 +81,7 @@ task.spawn(function()
 		expectEqual(value, 17)
 	end)
 
-	test("andThen can return a Promise", function()
+	it("andThen can return a Promise", function()
 		local status, value = Promise.resolve(10)
 			:andThen(function(x)
 				return Promise.resolve(x * 3)
@@ -106,7 +92,7 @@ task.spawn(function()
 		expectEqual(value, 30)
 	end)
 
-	test("andThen rejection handler", function()
+	it("andThen rejection handler", function()
 		local status, value = Promise.reject("bad")
 			:andThen(nil, function(err)
 				return "recovered: " .. err
@@ -118,14 +104,14 @@ task.spawn(function()
 	end)
 
 	-- Rejection
-	test("Promise.reject", function()
+	it("Promise.reject", function()
 		local status, reason = Promise.reject("boom"):awaitStatus()
 
 		expectEqual(status, Promise.Status.Rejected)
 		expectEqual(reason, "boom")
 	end)
 
-	test("catch recovers", function()
+	it("catch recovers", function()
 		local status, value = Promise.reject("boom")
 			:catch(function(err)
 				return "caught: " .. err
@@ -136,7 +122,7 @@ task.spawn(function()
 		expectEqual(value, "caught: boom")
 	end)
 
-	test("executor error becomes rejection", function()
+	it("executor error becomes rejection", function()
 		local status, err = Promise.new(function()
 			error("executor exploded")
 		end):awaitStatus()
@@ -146,7 +132,7 @@ task.spawn(function()
 		expectEqual(err.kind, Promise.Error.Kind.ExecutionError)
 	end)
 
-	test("andThen error becomes rejection", function()
+	it("andThen error becomes rejection", function()
 		local status, err = Promise.resolve()
 			:andThen(function()
 				error("callback exploded")
@@ -159,7 +145,7 @@ task.spawn(function()
 	end)
 
 	-- finally / tap
-	test("finally runs on resolve", function()
+	it("finally runs on resolve", function()
 		local called = false
 
 		local status, value = Promise.resolve(42)
@@ -173,7 +159,7 @@ task.spawn(function()
 		assert(called, "finally was not called")
 	end)
 
-	test("finally runs on reject", function()
+	it("finally runs on reject", function()
 		local called = false
 
 		local status, reason = Promise.reject("bad")
@@ -187,7 +173,7 @@ task.spawn(function()
 		assert(called, "finally was not called")
 	end)
 
-	test("finally can return a Promise", function()
+	it("finally can return a Promise", function()
 		local status, value = Promise.resolve("hello")
 			:finally(function()
 				return Promise.delay(0.01)
@@ -198,7 +184,7 @@ task.spawn(function()
 		expectEqual(value, "hello")
 	end)
 
-	test("tap preserves value", function()
+	it("tap preserves value", function()
 		local seen
 
 		local status, value = Promise.resolve(99)
@@ -213,7 +199,7 @@ task.spawn(function()
 	end)
 
 	-- Delay / defer
-	test("Promise.delay", function()
+	it("Promise.delay", function()
 		local start = os.clock()
 
 		local status, value = Promise.delay(0.03)
@@ -229,7 +215,7 @@ task.spawn(function()
 		assert(elapsed >= 0.02, "delay completed too early")
 	end)
 
-	test("Promise.defer", function()
+	it("Promise.defer", function()
 		local ran = false
 
 		local promise = Promise.defer(function(resolve)
@@ -247,7 +233,7 @@ task.spawn(function()
 	end)
 
 	-- all
-	test("Promise.all", function()
+	it("Promise.all", function()
 		local status, values = Promise.all({
 			Promise.resolve(1),
 			Promise.resolve(2),
@@ -262,7 +248,7 @@ task.spawn(function()
 		expectEqual(values[3], 3)
 	end)
 
-	test("Promise.all preserves order", function()
+	it("Promise.all preserves order", function()
 		local status, values = Promise.all({
 			Promise.delay(0.03):andThen(function()
 				return "slow"
@@ -276,7 +262,7 @@ task.spawn(function()
 		expectEqual(values[2], "fast")
 	end)
 
-	test("Promise.all rejects", function()
+	it("Promise.all rejects", function()
 		local status, reason = Promise.all({
 			Promise.resolve(1),
 			Promise.reject("failed"),
@@ -288,7 +274,7 @@ task.spawn(function()
 	end)
 
 	-- race / any / some
-	test("Promise.race", function()
+	it("Promise.race", function()
 		local status, value = Promise.race({
 			Promise.delay(0.03):andThen(function()
 				return "slow"
@@ -301,7 +287,7 @@ task.spawn(function()
 		expectEqual(value, "fast")
 	end)
 
-	test("Promise.any", function()
+	it("Promise.any", function()
 		local status, value = Promise.any({
 			Promise.reject("first"),
 			Promise.resolve("winner"),
@@ -312,7 +298,7 @@ task.spawn(function()
 		expectEqual(value, "winner")
 	end)
 
-	test("Promise.some", function()
+	it("Promise.some", function()
 		local status, values = Promise.some({
 			Promise.resolve(1),
 			Promise.resolve(2),
@@ -324,7 +310,7 @@ task.spawn(function()
 	end)
 
 	-- each / fold
-	test("Promise.each", function()
+	it("Promise.each", function()
 		local seen = {}
 
 		local status, values = Promise.each({
@@ -348,7 +334,7 @@ task.spawn(function()
 		expectEqual(values[3], 6)
 	end)
 
-	test("Promise.fold", function()
+	it("Promise.fold", function()
 		local status, value = Promise.fold({
 			1,
 			2,
@@ -363,7 +349,7 @@ task.spawn(function()
 	end)
 
 	-- cancellation
-	test("cancel pending Promise", function()
+	it("cancel pending Promise", function()
 		local ran = false
 
 		local promise = Promise.new(function(resolve, _, onCancel)
@@ -390,7 +376,7 @@ task.spawn(function()
 		assert(not ran, "cancelled Promise continued execution")
 	end)
 
-	test("cancel hook runs", function()
+	it("cancel hook runs", function()
 		local cancelled = false
 
 		local promise = Promise.new(function(_, _, onCancel)
@@ -408,7 +394,7 @@ task.spawn(function()
 		assert(cancelled, "cancellation hook did not run")
 	end)
 
-	test("cancel resolved Promise does nothing", function()
+	it("cancel resolved Promise does nothing", function()
 		local promise = Promise.resolve("done")
 
 		promise:cancel()
@@ -417,13 +403,13 @@ task.spawn(function()
 	end)
 
 	-- Regression / edge cases
-	test("Error.new uses fallback error text", function()
+	it("Error.new uses fallback error text", function()
 		local err = Promise.Error.new()
 
 		expectEqual(err.error, "[This error has no error text.]")
 	end)
 
-	test("Promise.defer can be cancelled before executor starts", function()
+	it("Promise.defer can be cancelled before executor starts", function()
 		local ran = false
 
 		local promise = Promise.defer(function()
@@ -437,7 +423,7 @@ task.spawn(function()
 		assert(not ran, "cancelled deferred executor still ran")
 	end)
 
-	test("Promise.defer executor runs exactly once", function()
+	it("Promise.defer executor runs exactly once", function()
 		local runs = 0
 
 		local status = Promise.defer(function(resolve)
@@ -450,20 +436,20 @@ task.spawn(function()
 	end)
 
 	-- Status / helpers
-	test("getStatus", function()
+	it("getStatus", function()
 		local promise = Promise.resolve(1)
 
 		expectEqual(promise:getStatus(), Promise.Status.Resolved)
 	end)
 
-	test("_unwrap resolved", function()
+	it("_unwrap resolved", function()
 		local success, value = Promise.resolve(123):_unwrap()
 
 		assert(success, "expected success")
 		expectEqual(value, 123)
 	end)
 
-	test("Promise.is", function()
+	it("Promise.is", function()
 		local promise = Promise.resolve(1)
 
 		assert(Promise.is(promise), "Promise.is returned false")
@@ -471,7 +457,7 @@ task.spawn(function()
 		assert(not Promise.is({}), "Promise.is returned true for table")
 	end)
 
-	test("Promise.try", function()
+	it("Promise.try", function()
 		local status, value = Promise.try(function()
 			return 10 + 20
 		end):awaitStatus()
@@ -480,7 +466,7 @@ task.spawn(function()
 		expectEqual(value, 30)
 	end)
 
-	test("Promise.try catches errors", function()
+	it("Promise.try catches errors", function()
 		local status, err = Promise.try(function()
 			error("try failed")
 		end):awaitStatus()
@@ -490,7 +476,7 @@ task.spawn(function()
 	end)
 
 	-- Nested / concurrent execution
-	test("concurrent Promises", function()
+	it("concurrent Promises", function()
 		local status, values = Promise.all({
 			Promise.delay(0.02):andThen(function()
 				return "A"
@@ -510,7 +496,7 @@ task.spawn(function()
 		expectEqual(values[3], "C")
 	end)
 
-	test("nested Promise chain", function()
+	it("nested Promise chain", function()
 		local status, value = Promise.resolve(2)
 			:andThen(function(x)
 				return Promise.new(function(resolve)
@@ -527,13 +513,6 @@ task.spawn(function()
 		expectEqual(value, 10)
 	end)
 
-	print("")
-	print(string.format("=== %d passed, %d failed ===", passed, failed))
-
-	if failed > 0 then
-		process.exit(1)
-	else
-		print("ALL TESTS PASSED")
-		process.exit(0)
-	end
 end)
+
+return nil

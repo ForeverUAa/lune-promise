@@ -29,5 +29,8 @@ jobs:
       - name: Install Rokit
         uses: CompeyDev/setup-rokit@v0.1.2
 
+      - name: Install Lest
+        run: rokit install --no-trust-check
+
       - name: Run tests
-        run: lune run test.luau
+        run: lest run unit --forbid-only
