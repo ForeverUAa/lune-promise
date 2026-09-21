@@ -1,4 +1,5 @@
 local Promise = require("./lib")
+local process = require("@lune/process")
 local task = require("@lune/task")
 
 local passed = 0
@@ -397,7 +398,7 @@ task.spawn(function()
 				cancelled = true
 			end)
 
-			task.wait(1)
+			process.exit(failed > 0 and 1 or 0)
 		end)
 
 		promise:cancel()
