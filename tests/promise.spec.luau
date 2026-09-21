@@ -5,12 +5,8 @@ local describe, it, expect = Lest.describe, Lest.it, Lest.expect
 local Promise = require("../lib")
 local task = require("@lune/task")
 
-local function expectEqual(actual, expected, message)
-	assert(actual == expected, message or string.format(
-		"expected %s, got %s",
-		tostring(expected),
-		tostring(actual)
-	))
+local function expectEqual(actual, expected)
+	expect(actual).toBe(expected)
 end
 
 
@@ -128,7 +124,7 @@ describe("Promise", function()
 		end):awaitStatus()
 
 		expectEqual(status, Promise.Status.Rejected)
-		assert(Promise.Error.is(err), "expected Promise.Error")
+		expect(Promise.Error.is(err)).toBe(true)
 		expectEqual(err.kind, Promise.Error.Kind.ExecutionError)
 	end)
 
@@ -140,7 +136,7 @@ describe("Promise", function()
 			:awaitStatus()
 
 		expectEqual(status, Promise.Status.Rejected)
-		assert(Promise.Error.is(err), "expected Promise.Error")
+		expect(Promise.Error.is(err)).toBe(true)
 		expectEqual(err.kind, Promise.Error.Kind.ExecutionError)
 	end)
 
@@ -156,7 +152,7 @@ describe("Promise", function()
 
 		expectEqual(status, Promise.Status.Resolved)
 		expectEqual(value, 42)
-		assert(called, "finally was not called")
+		expect(called).toBe(true)
 	end)
 
 	it("finally runs on reject", function()
@@ -170,7 +166,7 @@ describe("Promise", function()
 
 		expectEqual(status, Promise.Status.Rejected)
 		expectEqual(reason, "bad")
-		assert(called, "finally was not called")
+		expect(called).toBe(true)
 	end)
 
 	it("finally can return a Promise", function()
@@ -212,7 +208,7 @@ describe("Promise", function()
 
 		expectEqual(status, Promise.Status.Resolved)
 		expectEqual(value, "done")
-		assert(elapsed >= 0.02, "delay completed too early")
+		expect(elapsed).toBeGreaterThanOrEqual(0.02)
 	end)
 
 	it("Promise.defer", function()
@@ -223,13 +219,13 @@ describe("Promise", function()
 			resolve("deferred")
 		end)
 
-		assert(not ran, "defer executed synchronously")
+		expect(ran).toBe(false)
 
 		local status, value = promise:awaitStatus()
 
 		expectEqual(status, Promise.Status.Resolved)
 		expectEqual(value, "deferred")
-		assert(ran, "deferred executor never ran")
+		expect(ran).toBe(true)
 	end)
 
 	-- all
@@ -373,7 +369,7 @@ describe("Promise", function()
 
 		task.wait(0.08)
 
-		assert(not ran, "cancelled Promise continued execution")
+		expect(ran).toBe(false)
 	end)
 
 	it("cancel hook runs", function()
@@ -391,7 +387,7 @@ describe("Promise", function()
 
 		task.wait(0.01)
 
-		assert(cancelled, "cancellation hook did not run")
+		expect(cancelled).toBe(true)
 	end)
 
 	it("cancel resolved Promise does nothing", function()
@@ -420,7 +416,7 @@ describe("Promise", function()
 		expectEqual(promise:getStatus(), Promise.Status.Cancelled)
 
 		task.wait(0.02)
-		assert(not ran, "cancelled deferred executor still ran")
+		expect(ran).toBe(false)
 	end)
 
 	it("Promise.defer executor runs exactly once", function()
@@ -445,16 +441,16 @@ describe("Promise", function()
 	it("_unwrap resolved", function()
 		local success, value = Promise.resolve(123):_unwrap()
 
-		assert(success, "expected success")
+		expect(success).toBe(true)
 		expectEqual(value, 123)
 	end)
 
 	it("Promise.is", function()
 		local promise = Promise.resolve(1)
 
-		assert(Promise.is(promise), "Promise.is returned false")
-		assert(not Promise.is(123), "Promise.is returned true for number")
-		assert(not Promise.is({}), "Promise.is returned true for table")
+		expect(Promise.is(promise)).toBe(true)
+		expect(Promise.is(123)).toBe(false)
+		expect(Promise.is({})).toBe(false)
 	end)
 
 	it("Promise.try", function()
@@ -472,7 +468,7 @@ describe("Promise", function()
 		end):awaitStatus()
 
 		expectEqual(status, Promise.Status.Rejected)
-		assert(Promise.Error.is(err), "expected Promise.Error")
+		expect(Promise.Error.is(err)).toBe(true)
 	end)
 
 	-- Nested / concurrent execution
