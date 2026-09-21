@@ -398,7 +398,7 @@ task.spawn(function()
 				cancelled = true
 			end)
 
-			process.exit(failed > 0 and 1 or 0)
+			task.wait(0.05)
 		end)
 
 		promise:cancel()
@@ -414,6 +414,39 @@ task.spawn(function()
 		promise:cancel()
 
 		expectEqual(promise:getStatus(), Promise.Status.Resolved)
+	end)
+
+	-- Regression / edge cases
+	test("Error.new uses fallback error text", function()
+		local err = Promise.Error.new()
+
+		expectEqual(err.error, "[This error has no error text.]")
+	end)
+
+	test("Promise.defer can be cancelled before executor starts", function()
+		local ran = false
+
+		local promise = Promise.defer(function()
+			ran = true
+		end)
+
+		promise:cancel()
+		expectEqual(promise:getStatus(), Promise.Status.Cancelled)
+
+		task.wait(0.02)
+		assert(not ran, "cancelled deferred executor still ran")
+	end)
+
+	test("Promise.defer executor runs exactly once", function()
+		local runs = 0
+
+		local status = Promise.defer(function(resolve)
+			runs += 1
+			resolve("ok")
+		end):awaitStatus()
+
+		expectEqual(status, Promise.Status.Resolved)
+		expectEqual(runs, 1)
 	end)
 
 	-- Status / helpers
@@ -504,4 +537,4 @@ task.spawn(function()
 	end
 end)
 
-task.wait(1)
+process.exit(failed > 0 and 1 or 0)
