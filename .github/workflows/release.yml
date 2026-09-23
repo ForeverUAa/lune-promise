@@ -1,0 +1,36 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Argon
+        run: |
+          curl -fsSL -o argon.zip https://github.com/argon-rbx/argon/releases/download/2.0.29/argon-2.0.29-linux-x86_64.zip
+          echo "a0c19a38953934cd3229bdc189be0537b46026c8096ac2a9c93a9bdfcfcafe13  argon.zip" | sha256sum -c
+          unzip -q argon.zip -d argon
+          chmod +x argon/argon
+
+      - name: Build package
+        run: ./argon/argon build default.project.json --output lune-promise.rbxm
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" lune-promise.rbxm \
+            --title "${{ github.ref_name }}" \
+            --generate-notes
