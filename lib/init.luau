@@ -119,7 +119,7 @@ do
 		local runtimeErrors = { self }
 
 		while runtimeErrors[#runtimeErrors].parent do
-			table.insert(runtimeErrors, runtimeErrors[#runtimeErrors].parent)
+			runtimeErrors[#runtimeErrors + 1] = runtimeErrors[#runtimeErrors].parent
 		end
 
 		return runtimeErrors
@@ -310,8 +310,6 @@ function Promise._new(traceback, callback, parent)
 		return self._status == Promise.Status.Cancelled
 	end
 
-	self._thread = nil
-
 	local function executor()
 		local ok, _, result = runExecutor(
 			self._source,
@@ -396,19 +394,7 @@ end
 	@return Promise
 ]=]
 function Promise.defer(executor)
-	local traceback = debug.traceback(nil, 2)
-	local promise
-	promise = Promise._new(traceback, function(resolve, reject, onCancel)
-		task.defer(function()
-			local ok, _, result = runExecutor(traceback, executor, resolve, reject, onCancel)
-
-			if not ok then
-				reject(result[1])
-			end
-		end)
-	end)
-
-	return promise
+	return Promise._new(debug.traceback(nil, 2), executor)
 end
 
 -- Backwards compatibility
@@ -943,7 +929,7 @@ function Promise.each(list, predicate)
 					return ...
 				end)
 
-				table.insert(promisesToCancel, ourPromise)
+				promisesToCancel[#promisesToCancel + 1] = ourPromise
 				preprocessedList[index] = ourPromise
 			else
 				preprocessedList[index] = value
@@ -967,7 +953,7 @@ function Promise.each(list, predicate)
 
 			local predicatePromise = Promise.resolve(predicate(value, index))
 
-			table.insert(promisesToCancel, predicatePromise)
+			promisesToCancel[#promisesToCancel + 1] = predicatePromise
 
 			local success, result = predicatePromise:await()
 
@@ -1171,8 +1157,8 @@ function Promise.prototype:_andThen(traceback, successHandler, failureHandler)
 
 		if self._status == Promise.Status.Started then
 			-- If we haven't resolved yet, put ourselves into the queue
-			table.insert(self._queuedResolve, successCallback)
-			table.insert(self._queuedReject, failureCallback)
+			self._queuedResolve[#self._queuedResolve + 1] = successCallback
+			self._queuedReject[#self._queuedReject + 1] = failureCallback
 
 			onCancel(function()
 				-- These are guaranteed to exist because the cancellation handler is guaranteed to only
@@ -1434,7 +1420,7 @@ function Promise.prototype:_finally(traceback, finallyHandler)
 
 		if self._status == Promise.Status.Started then
 			-- The promise is not settled, so queue this.
-			table.insert(self._queuedFinally, finallyCallback)
+			self._queuedFinally[#self._queuedFinally + 1] = finallyCallback
 		else
 			-- The promise already settled or was cancelled, run the callback now.
 			finallyCallback(self._status)
